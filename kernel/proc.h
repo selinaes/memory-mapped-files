@@ -80,6 +80,18 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+#define VMACOUNT 32
+
+struct mmap_rgn {
+  uint64 addr; //starting address
+  int occupied; //if used
+  int len; //region size
+  int prot; //prot read/write/executable flags
+  int flag; //map shared/private
+  struct file* fileptr; //corresponding file
+  int offset; //always 0
+};
+
 enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -104,4 +116,6 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   uint64 trap_va;              // trapframe va for threads
-};
+
+  struct mmap_rgn vma[VMACOUNT]; // mmap virtual memory area record 
+}; 

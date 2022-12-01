@@ -486,3 +486,103 @@ sys_pipe(void)
   return 0;
 }
 
+// void* mmap(void* addr, int length, int prot, int flags, int fd, int offset);
+uint64
+sys_mmap(void)
+{
+  uint64 addr; //starting address
+  int len; //region size
+  int prot; //prot read/write/executable flags
+  int flag; //map shared/private
+  struct file* fileptr; //corresponding file
+  int offset; //always 0
+  int fd; // file descriptor
+  uint64 fail = 0xffffffffffffffff;
+  struct proc* p = myproc();
+  
+  // Extract arguments
+  if (argaddr(0, &addr) < 0) return fail;
+  if (argint(1, &len) < 0) return fail;
+  if (argint(2, &prot) < 0) return fail;
+  if (argint(3, &flag) < 0) return fail;
+  if (argfd(4, &fd, &fileptr) < 0) return fail;
+  if (argint(5, &offset) < 0) return fail;
+
+  //check if file read is disabled while mapped memory is readable
+  if (fileptr->readable == 0) {
+    if (prot & PROT_READ) {
+      return fail;
+    }
+  }
+
+  //check if file write is disabled while mapped memory is writable and mapshared
+  if(fileptr->writable == 0){ // read-only file
+    if((prot & PROT_WRITE) && (flag & MAP_SHARED)){  // testcases: only MAP_PRIVATE allowed, only on-write mapping
+      return fail;
+    }
+  }
+
+  //if no enough space for MMAP
+  if(MAXVA < p->sz + len) return fail;
+
+  //find a vma struct that is not occupied and store
+  for (int i = 0; i < VMACOUNT; i++) {
+    if (p->vma[i].occupied != 1) {
+      p->vma[i].offset = 0;
+      p->vma[i].prot = prot;
+      p->vma[i].occupied = 1;
+      p->vma[i].len = len;
+      p->vma[i].flag = flag;
+      p->vma[i].fileptr = fileptr;
+      p->vma[i].addr = p->sz;
+      p->sz += len;
+      filedup(fileptr); 
+      return p->vma[i].addr;
+    }
+  }
+  
+  //if no available vma struct is found
+  return fail;
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr; //starting address
+  int len; //region size
+  struct proc* p = myproc();
+  int i;
+
+  // Extract arguments
+  if (argaddr(0, &addr) < 0) return -1;
+  if (argint(1, &len) < 0) return -1;
+  
+  for(i = 0; i < VMACOUNT; i++) {
+    if (p->vma[i].occupied) {
+      if (addr == p->vma[i].addr && len <= p->vma[i].len) { //unmap starting position
+        p->vma[i].len -= len;
+        p->vma[i].addr += len;
+        break;
+      }
+      if (addr + len == p->vma[i].addr + p->vma[i].len && len <= p->vma[i].len){ //unmap ending position
+        p->vma[i].len -= len;
+        break;
+      } 
+    }
+    if (i == VMACOUNT - 1) return -1; //not found unmapped memory in VMA struct
+  }
+
+  if ((p->vma[i].prot & PROT_WRITE) && (p->vma[i].flag & MAP_SHARED)) { //write map shared memory to original file
+    filewrite(p->vma[i].fileptr, addr, len);
+  }
+
+  // unmap pa->va
+  uvmunmap(p->pagetable, addr, len / PGSIZE, 1);
+
+  if(p->vma[i].len == 0){ //unmap all memory in vma struct
+          fileclose(p->vma[i].fileptr);
+          p->vma[i].occupied = 0;
+  
+  }
+  return 0;
+}

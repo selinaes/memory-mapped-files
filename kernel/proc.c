@@ -8,6 +8,7 @@
 #include "file.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -122,6 +123,9 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  
+  // Initialize an empty vma.
+  memset(&p->vma, 0, sizeof(p->vma));
 
   return p;
 }
@@ -283,6 +287,13 @@ fork(void)
 
   np->state = RUNNABLE;
 
+  for (i = 0; i < VMACOUNT; i++) {
+    if (p->vma[i].occupied) {
+      memmove(&np->vma[i], &p->vma[i], sizeof(p->vma[i]));
+      filedup(np->vma[i].fileptr);
+    }
+  }
+
   release(&np->lock);
 
   return pid;
@@ -331,6 +342,17 @@ exit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+    }
+  }
+
+  for (int i = 0; i < VMACOUNT; i++) {
+    if (p->vma[i].occupied == 1) {
+      p->vma[i].occupied = 0;
+      if ((p->vma[i].prot & PROT_WRITE) && (p->vma[i].flag & MAP_SHARED)) {
+        filewrite(p->vma[i].fileptr, p->vma[i].addr, p->vma[i].len);
+      }
+      fileclose(p->vma[i].fileptr);
+      uvmunmap(p->pagetable, p->vma[i].addr, p->vma[i].len / PGSIZE, 1);
     }
   }
 
@@ -689,4 +711,54 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+mmap_helper(int va, int r_scause) {
+  //handle map va->pa
+      struct proc* p = myproc();
+      int i;
+      for(i = 0; i < VMACOUNT; i++){
+        if(p->vma[i].occupied){ // if the vma struct is in use
+          if(p->vma[i].addr <= va && p->vma[i].addr + p->vma[i].len > va) { // if va is within rage of vma memory region
+            goto found;
+          }
+        }
+      }
+      printf("didn't find unused vma");
+      return -1;
+      
+      found: ;
+        // read / write page fault conflict
+        // struct file* curfile = p->vma[i].fileptr;
+        int prot = p->vma[i].prot;
+        if(r_scause == 13 && (prot & PROT_READ) == 0 && p->vma[i].fileptr->readable == 0) return -1;
+        if(r_scause == 15 && (prot & PROT_WRITE) == 0 && p->vma[i].fileptr->writable == 0) return -1;
+
+        //allocate memory for pa
+        void* pa = kalloc();
+        if(pa == 0) return -1;
+        memset(pa, 0, PGSIZE);
+  
+        // copy file from disk to RAM
+        ilock(p->vma[i].fileptr->ip);
+        if (readi(p->vma[i].fileptr->ip, 0, (uint64)pa, PGROUNDDOWN(va - p->vma[i].addr), PGSIZE) == 0) { // if read nothing
+          iunlock(p->vma[i].fileptr->ip);
+          kfree(pa);
+          return -1;
+        }
+        iunlock(p->vma[i].fileptr->ip);
+
+        // set flags
+        uint pte_flags;
+        if (prot & PROT_READ) pte_flags = PTE_U | PTE_R;
+        if (prot & PROT_WRITE) pte_flags = pte_flags | PTE_W;
+        if (prot & PROT_EXEC) pte_flags = pte_flags | PTE_X;
+
+        // map pa->va
+        if (mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)pa, pte_flags) != 0) {
+          kfree(pa);
+          return -1;
+        }
+  return 0;
 }

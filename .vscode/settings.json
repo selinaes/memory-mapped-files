@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "spinlock.h": "c",
+        "defs.h": "c",
+        "string.h": "c",
+        "cstring": "c",
+        "__availability": "c",
+        "__mutex_base": "c",
+        "atomic": "c",
+        "memory": "c",
+        "mutex": "c",
+        "file.h": "c"
+    }
+}
