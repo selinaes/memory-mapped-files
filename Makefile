@@ -145,6 +145,7 @@ UPROGS=\
 	$U/_specialtest\
 	$U/_umalloc\
 	$U/_mmaptest\
+	$U/_mmap_eval\
 	# $U/_threadtest\
 	# $U/_symlinktest\
 
