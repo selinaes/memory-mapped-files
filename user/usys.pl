@@ -40,3 +40,4 @@ entry("ntas");
 entry("nfree");
 entry("mmap");
 entry("munmap");
+entry("cpu_cycle");

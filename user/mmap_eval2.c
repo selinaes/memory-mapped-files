@@ -12,7 +12,7 @@ void mmap_micro_compare();
 
 #define MAP_FAILED ((char *) -1)
 
-char buf[50*PGSIZE];
+char buf[10*PGSIZE];
 
 
 char *testname = "???";
@@ -39,13 +39,13 @@ void
 makefile(const char *f)
 {
   int i;
-  int n = 50;
+  int n = 10;
 
   unlink(f);
   int fd = open(f, O_WRONLY | O_CREATE);
   if (fd == -1)
     err("open");
-  memset(buf, 'A', 50 * PGSIZE);
+  memset(buf, 'A', 10 * PGSIZE);
   // write 100 page
   for (i = 0; i < n; i++) {
     if (write(fd, buf, PGSIZE) != PGSIZE) {
@@ -69,7 +69,7 @@ void
 _v1(char *p)
 {
   int i;
-  for (i = 0; i < PGSIZE*50; i++) {
+  for (i = 0; i < PGSIZE*10; i++) {
     
     if (p[i] != 'A') {
     printf("mismatch at %d, wanted 'A', got 0x%x\n", i, p[i]);
@@ -79,7 +79,7 @@ _v1(char *p)
   }
 }
 
-char read_buf[50 * PGSIZE];
+char read_buf[10 * PGSIZE];
 
 void
 mmap_micro_compare(void)
@@ -102,7 +102,7 @@ mmap_micro_compare(void)
     err("open");
   int bfmmap = cpu_cycle();
 //   printf("cpu cycle: %d\n", bfmmap);
-  char *p = mmap(0, PGSIZE*50, PROT_READ, MAP_PRIVATE, fd1, 0);
+  char *p = mmap(0, PGSIZE*10, PROT_READ, MAP_PRIVATE, fd1, 0);
   if (p == MAP_FAILED)
     err("mmap (1)");
   _v1(p);
@@ -117,12 +117,12 @@ mmap_micro_compare(void)
     err("open");
   int bfread = cpu_cycle();
 //   printf("cpu cycle: %d\n", bfread);
-  read(fd2, read_buf, PGSIZE*50);
+  read(fd2, read_buf, PGSIZE*10);
   _v1(read_buf);
   int aftread = cpu_cycle();
 //   printf("cpu cycle: %d\n", aftread);
   printf("read diff: %d\n", aftread - bfread);
 
-  printf("50pages read - mmap diff diff: %d\n", (aftread - bfread) - (aftmmap - bfmmap));
+  printf("10pages read - mmap diff diff: %d\n", (aftread - bfread) - (aftmmap - bfmmap));
 }
 
