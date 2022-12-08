@@ -95,3 +95,7 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64 sys_cpu_cycle(void){
+  return r_time();
+  }

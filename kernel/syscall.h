@@ -27,3 +27,5 @@
 
 #define SYS_mmap   24
 #define SYS_munmap 25
+
+#define SYS_cpu_cycle 26

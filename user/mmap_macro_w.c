@@ -9,7 +9,6 @@
 // #include "kernel/defs.h"
 
 void mmap_micro_compare();
-int f_size = 10;
 
 #define MAP_FAILED ((char *) -1)
 
@@ -55,8 +54,7 @@ makefile(const char *f)
     }
       
   }
-//   if (write(fd, buf, 100 * PGSIZE) != 100 * PGSIZE)
-//       err("write 0 makefile");
+
 
   if (close(fd) == -1)
     err("close");
@@ -99,31 +97,37 @@ mmap_micro_compare(void)
   //mmap
   
   makefile(f1);
-  if ((fd1 = open(f1, O_RDONLY)) == -1)
+  if ((fd1 = open(f1, O_WRONLY)) == -1)
     err("open");
   int bfmmap = cpu_cycle();
-//   printf("cpu cycle: %d\n", bfmmap);
-  char *p = mmap(0, PGSIZE*50, PROT_READ, MAP_PRIVATE, fd1, 0);
+
+  char *p = mmap(0, PGSIZE*50, PROT_WRITE, MAP_SHARED, fd1, 0);
   if (p == MAP_FAILED)
     err("mmap (1)");
-  _v1(p);
+  for (int i = 0; i < 50; i++) {
+      p[49*PGSIZE] = 'i';
+      munmap(p+49*PGSIZE, 1);
+  }
   int aftmmap = cpu_cycle();
-//   printf("cpu cycle: %d\n", aftmmap);
+
   printf("mmap diff: %d\n", aftmmap - bfmmap);
 
 
   //read
   makefile(f2);
-  if ((fd2 = open(f2, O_RDONLY)) == -1)
+  if ((fd2 = open(f2, O_WRONLY)) == -1)
     err("open");
   int bfread = cpu_cycle();
-//   printf("cpu cycle: %d\n", bfread);
+
   read(fd2, read_buf, PGSIZE*50);
-  _v1(read_buf);
+  for (int i = 0; i < 50; i++) {
+      read_buf[49*PGSIZE] = 'i';
+      write(fd2, read_buf, PGSIZE*50);
+  }
   int aftread = cpu_cycle();
-//   printf("cpu cycle: %d\n", aftread);
+
   printf("read diff: %d\n", aftread - bfread);
 
-  printf("50pages read - mmap diff diff: %d\n", (aftread - bfread) - (aftmmap - bfmmap));
+  printf("50pages Write 1page read - mmap diff diff: %d\n", (aftread - bfread) - (aftmmap - bfmmap));
 }
 

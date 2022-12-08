@@ -12,6 +12,7 @@
         "file.h": "c",
         "__config": "c",
         "locale": "c",
-        "istream": "c"
+        "istream": "c",
+        "param.h": "c"
     }
 }
